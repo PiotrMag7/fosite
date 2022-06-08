@@ -47,7 +47,6 @@ func (f *Fosite) NewRevocationRequest(ctx context.Context, r *http.Request) erro
 	} else if err := r.ParseForm(); err != nil {
 		return errors.WithStack(ErrInvalidRequest.WithDebug(err.Error()))
 	}
-
 	clientID, clientSecret, ok := r.BasicAuth()
 	if !ok {
 		return errors.WithStack(ErrInvalidRequest.WithDebug("HTTP Authorization header missing or invalid"))
@@ -55,13 +54,15 @@ func (f *Fosite) NewRevocationRequest(ctx context.Context, r *http.Request) erro
 
 	client, err := f.Store.GetClient(ctx, clientID)
 	if err != nil {
-		return errors.WithStack(ErrInvalidClient.WithDebug(err.Error()))
+		return errors.WithStack(ErrInvalidClient.WithDebug(err.Error().WithDebug(
+			fmt.Sprintf("Token revoke failed. Couldn't obtain client for clientID: %s", clientID))))
 	}
 
 	// Enforce client authentication for confidential clients
 	if !client.IsPublic() {
 		if err := f.Hasher.Compare(client.GetHashedSecret(), []byte(clientSecret)); err != nil {
-			return errors.WithStack(ErrInvalidClient.WithDebug(err.Error()))
+			return errors.WithStack(ErrInvalidClient.WithDebug(err.Error()).WithDebug(
+				"Token revoke failed. Couldn't authenticate client"))
 		}
 	}
 
@@ -73,14 +74,16 @@ func (f *Fosite) NewRevocationRequest(ctx context.Context, r *http.Request) erro
 		if err := loader.RevokeToken(ctx, token, tokenTypeHint, client); err == nil {
 			found = true
 		} else if errors.Cause(err).Error() == ErrUnknownRequest.Error() {
+			//TODO: some logging, requires instrumentation
 			// do nothing
 		} else if err != nil {
-			return err
+			return errors.WithStack(ErrServerError.WithDebug(err.Error()).WithDebug(
+				"Token revoke failed."))
 		}
 	}
 
 	if !found {
-		return errors.WithStack(ErrInvalidRequest)
+		return errors.WithStack(ErrInvalidRequest.WithDebug("Token revoke failed. Token couldn't be located"))
 	}
 
 	return nil

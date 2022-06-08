@@ -39,7 +39,7 @@ func (f *Fosite) NewTokenMigrationRequest(ctx context.Context, r *http.Request) 
 
 	token := r.PostForm.Get("token")
 	if token == "" {
-		return ErrInvalidTokenFormat
+		return ErrInvalidTokenFormat.WithDebug("Token migration failed. Token segment was missing in the request body")
 	}
 
 	refreshToken := r.PostForm.Get("refresh_token")
@@ -56,25 +56,26 @@ func (f *Fosite) NewTokenMigrationRequest(ctx context.Context, r *http.Request) 
 
 	client, err := f.Store.GetClient(ctx, clientID)
 	if err != nil {
-		return errors.Wrap(ErrInvalidClient, err.Error())
+		return errors.Wrap(ErrInvalidClient.WithDebug(
+			fmt.Sprintf("Token migration failed. Couldn't obtain client for clientID: %s", clientID)), err.Error())
 	}
 
 	if !client.IsPublic() {
 		// Enforce client authentication
 		if err := f.Hasher.Compare(client.GetHashedSecret(), []byte(clientSecret)); err != nil {
-			return errors.Wrap(ErrInvalidClient, err.Error())
+			return errors.Wrap(ErrInvalidClient.WithDebug("Token migration failed. Couldn't obtain client secret"), err.Error())
 		}
 	} else {
 		return errors.Wrap(ErrInvalidClient, "Only internal clients are allowed to migrate")
 	}
 
 	if !client.GetScopes().Has("hydra.token.migration") {
-		return ErrInvalidClient
+		return ErrInvalidClient.WithDebug("Token migration failed. Client scopes were missing hydra.token.migration segment")
 	}
 
 	originalClientEncoded := r.PostForm.Get("client")
 	if originalClientEncoded == "" {
-		return ErrInvalidClient
+		return ErrInvalidClient.WithDebug("Token migration failed. Client segment wasn't sent in the request")
 	}
 
 	var orgClientID, orgClientSecret string
@@ -88,13 +89,13 @@ func (f *Fosite) NewTokenMigrationRequest(ctx context.Context, r *http.Request) 
 
 	originalClient, err := f.Store.GetClient(ctx, orgClientID)
 	if err != nil {
-		return errors.Wrap(ErrInvalidClient, err.Error())
+		return errors.Wrap(ErrInvalidClient.WithDebug("Token migration failed. Couldn't obtain a client"), err.Error())
 	}
 
 	if orgClientSecret != "" && !originalClient.IsPublic() {
 		// Enforce client authentication
 		if err := f.Hasher.Compare(originalClient.GetHashedSecret(), []byte(orgClientSecret)); err != nil {
-			return errors.Wrap(ErrInvalidClient, err.Error())
+			return errors.Wrap(ErrInvalidClient.WithDebug("Token migration failed. Couldn't authenticate the client"), err.Error())
 		}
 	}
 
@@ -138,15 +139,16 @@ func (f *Fosite) NewTokenMigrationRequest(ctx context.Context, r *http.Request) 
 	resp.SetAccessToken(token)
 	resp.SetExtra("refresh_token", refreshToken)
 	resp.SetExtra("migrated", true)
-
 	var found bool
 	for _, migrater := range f.MigrationHandlers {
 		if err := migrater.MigrateToken(ctx, accessRequest, resp); err == nil {
 			found = true
 		} else if errors.Cause(err) == ErrUnknownRequest {
+			//TODO: some logging, requires instrumentation
 			// do nothing
 		} else if err != nil {
-			return err
+			return errors.WithStack(ErrorInvalidRequest.WithDebug(err.Error()).WithDebug(
+				"Token migration failed."))
 		}
 	}
 

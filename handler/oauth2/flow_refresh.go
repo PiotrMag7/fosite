@@ -16,6 +16,7 @@ package oauth2
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/pkg/errors"
@@ -85,30 +86,35 @@ func (c *RefreshTokenGrantHandler) HandleTokenEndpointRequest(ctx context.Contex
 // PopulateTokenEndpointResponse implements https://tools.ietf.org/html/rfc6749#section-6
 func (c *RefreshTokenGrantHandler) PopulateTokenEndpointResponse(ctx context.Context, requester fosite.AccessRequester, responder fosite.AccessResponder) error {
 	if !requester.GetGrantTypes().Exact("refresh_token") {
-		return errors.WithStack(fosite.ErrUnknownRequest)
+		return errors.WithStack(fosite.ErrUnknownRequest).WithDebug(fmt.Sprintf("Refresh flow endpoint expects grant type %s", "refresh_token"))
 	}
 
 	accessToken, accessSignature, err := c.AccessTokenStrategy.GenerateAccessToken(ctx, requester)
 	if err != nil {
-		return errors.WithStack(fosite.ErrServerError.WithDebug(err.Error()))
+		return errors.WithStack(fosite.ErrServerError.WithDebug(err.Error())).WithDebug(
+			"Generating Access Token failed during token refresh flow")
 	}
 
 	refreshToken, refreshSignature, err := c.getRefreshTokenAndSignature(ctx, requester)
 	if err != nil {
 		return errors.WithStack(fosite.ErrServerError.WithDebug(err.Error()))
 	}
-
 	signature := c.RefreshTokenStrategy.RefreshTokenSignature(requester.GetRequestForm().Get("refresh_token"))
 	if ts, err := c.TokenRevocationStorage.GetRefreshTokenSession(ctx, signature, nil); err != nil {
-		return errors.WithStack(fosite.ErrServerError.WithDebug(err.Error()))
+		return errors.WithStack(fosite.ErrServerError.WithDebug(err.Error())).WithDebug(
+			fmt.Sprintf("Refresh token flow: Couldn't obtain token session. Request signature: %s", signature))
 	} else if err := c.TokenRevocationStorage.RevokeAccessToken(ctx, ts.GetID()); err != nil {
-		return errors.WithStack(fosite.ErrServerError.WithDebug(err.Error()))
+		return errors.WithStack(fosite.ErrServerError.WithDebug(err.Error())).WithDebug(
+			fmt.Sprintf("Refresh token flow: Couldn't revoke access token. Request signature: %s", signature))
 	} else if err := c.TokenRevocationStorage.RevokeRefreshToken(ctx, ts.GetID()); err != nil {
-		return errors.WithStack(fosite.ErrServerError.WithDebug(err.Error()))
+		return errors.WithStack(fosite.ErrServerError.WithDebug(err.Error())).WithDebug(
+			fmt.Sprintf("Refresh token flow: Couldn't revoke refresh token. Request signature: %s", signature))
 	} else if err := c.TokenRevocationStorage.CreateAccessTokenSession(context.WithValue(ctx, "access_token", accessToken), accessSignature, requester); err != nil {
-		return errors.WithStack(fosite.ErrServerError.WithDebug(err.Error()))
+		return errors.WithStack(fosite.ErrServerError.WithDebug(err.Error())).WithDebug(
+			fmt.Sprintf("Refresh token flow: Couldn't create access token session. Request signature: %s", signature))
 	} else if err := c.TokenRevocationStorage.CreateRefreshTokenSession(context.WithValue(ctx, "refresh_token", refreshToken), refreshSignature, requester); err != nil {
-		return errors.WithStack(fosite.ErrServerError.WithDebug(err.Error()))
+		return errors.WithStack(fosite.ErrServerError.WithDebug(err.Error())).WithDebug(
+			fmt.Sprintf("Refresh token flow: Couldn't create refresh token session. Request signature: %s", signature))
 	}
 
 	responder.SetAccessToken(accessToken)

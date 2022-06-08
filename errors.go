@@ -249,6 +249,7 @@ func (e *RFC6749Error) StatusCode() int {
 
 func (e *RFC6749Error) WithDebug(debug string) *RFC6749Error {
 	err := *e
-	err.Debug = debug
+	//TODO - PK: check if this handle empty initial Debug
+	err.Debug += "\n" + debug
 	return &err
 }

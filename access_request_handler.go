@@ -16,6 +16,7 @@ package fosite
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"regexp"
@@ -56,7 +57,6 @@ var regexListSplit = regexp.MustCompile("[, ]+")
 func (f *Fosite) NewAccessRequest(ctx context.Context, r *http.Request, session Session) (AccessRequester, error) {
 	var err error
 	accessRequest := NewAccessRequest(session)
-
 	if r.Method != "POST" {
 		return accessRequest, errors.WithStack(ErrInvalidRequest.WithDebug("HTTP method is not POST"))
 	} else if err := r.ParseForm(); err != nil {
@@ -65,7 +65,8 @@ func (f *Fosite) NewAccessRequest(ctx context.Context, r *http.Request, session 
 
 	accessRequest.Form, err = accessRequestFromRequest(r)
 	if err != nil {
-		return accessRequest, errors.WithStack(ErrInvalidRequest.WithDebug("Request does not contain a valid body or form."))
+		return accessRequest, errors.WithStack(ErrInvalidRequest.WithDebug("Request does not contain a valid body or form.").WithDebug(
+			err.Error()))
 	}
 	if session == nil {
 		return accessRequest, errors.New("Session must not be nil")
@@ -81,12 +82,14 @@ func (f *Fosite) NewAccessRequest(ctx context.Context, r *http.Request, session 
 	// authorization header, or raw json format.
 	clientID, clientSecret, err := clientCredentialsFromRequest(r, accessRequest.Form)
 	if err != nil {
-		return accessRequest, err
+		return accessRequest, errors.WithStack(ErrInvalidClient.WithDebug(err.Error()).WithDebug(
+			"Couldn't obtain clientID or clientSecret"))
 	}
 
 	client, err := f.Store.GetClient(ctx, clientID)
 	if err != nil {
-		return accessRequest, errors.WithStack(ErrInvalidClient.WithDebug(err.Error()))
+		return accessRequest, errors.WithStack(ErrInvalidClient.WithDebug(err.Error()).WithDebug(
+			fmt.Sprintf("Couldn't obtain client for clientID: %s", clientID)))
 	}
 
 	if !client.IsPublic() {
@@ -102,6 +105,7 @@ func (f *Fosite) NewAccessRequest(ctx context.Context, r *http.Request, session 
 		if err := loader.HandleTokenEndpointRequest(ctx, accessRequest); err == nil {
 			found = true
 		} else if errors.Cause(err).Error() == ErrUnknownRequest.Error() {
+			//TODO: some logging, requires instrumentation
 			// do nothing
 		} else if err != nil {
 			return accessRequest, err
@@ -109,7 +113,7 @@ func (f *Fosite) NewAccessRequest(ctx context.Context, r *http.Request, session 
 	}
 
 	if !found {
-		return nil, errors.WithStack(ErrInvalidRequest)
+		return nil, errors.WithStack(ErrInvalidRequest.WithDebug("Access token was not found"))
 	}
 	return accessRequest, nil
 }

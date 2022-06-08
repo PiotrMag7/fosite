@@ -109,7 +109,6 @@ func (f *Fosite) NewIntrospectionRequest(ctx context.Context, r *http.Request, s
 	} else if err := r.ParseForm(); err != nil {
 		return &IntrospectionResponse{Active: false}, errors.WithStack(ErrInvalidRequest.WithDebug(err.Error()))
 	}
-
 	token := r.PostForm.Get("token")
 	tokenType := r.PostForm.Get("token_type_hint")
 	scope := r.PostForm.Get("scope")
@@ -129,12 +128,14 @@ func (f *Fosite) NewIntrospectionRequest(ctx context.Context, r *http.Request, s
 
 		client, err := f.Store.GetClient(ctx, clientID)
 		if err != nil {
-			return &IntrospectionResponse{Active: false}, errors.WithStack(ErrRequestUnauthorized.WithDebug("HTTP Authorization header missing.WithDebug(malformed or credentials used are invalid"))
+			return &IntrospectionResponse{Active: false}, errors.WithStack(ErrRequestUnauthorized.WithDebug("HTTP Authorization header missing.WithDebug(malformed or credentials used are invalid").WithDebug(
+				err.Error()))
 		}
 
 		// Enforce client authentication
 		if err := f.Hasher.Compare(client.GetHashedSecret(), []byte(clientSecret)); err != nil {
-			return &IntrospectionResponse{Active: false}, errors.WithStack(ErrRequestUnauthorized.WithDebug("HTTP Authorization header missing.WithDebug(malformed or credentials used are invalid"))
+			return &IntrospectionResponse{Active: false}, errors.WithStack(ErrRequestUnauthorized.WithDebug("HTTP Authorization header missing.WithDebug(malformed or credentials used are invalid").WithDebug(
+				err.Error()))
 		}
 	}
 

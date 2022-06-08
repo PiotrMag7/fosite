@@ -28,8 +28,10 @@ func (f *Fosite) NewAccessResponse(ctx context.Context, requester AccessRequeste
 	for _, tk = range f.TokenEndpointHandlers {
 		if err = tk.PopulateTokenEndpointResponse(ctx, requester, response); err == nil {
 		} else if errors.Cause(err).Error() == ErrUnknownRequest.Error() {
+			//TODO: some logging, requires instrumentation
 		} else if err != nil {
-			return nil, err
+			return nil, errors.WithStack(ErrServerError.WithDebug(err.Errors()).WithDebug(
+				"Couldn't create response object"))
 		}
 	}
 
