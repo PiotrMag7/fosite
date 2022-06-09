@@ -54,8 +54,8 @@ func (f *Fosite) NewRevocationRequest(ctx context.Context, r *http.Request) erro
 
 	client, err := f.Store.GetClient(ctx, clientID)
 	if err != nil {
-		return errors.WithStack(ErrInvalidClient.WithDebug(err.Error().WithDebug(
-			fmt.Sprintf("Token revoke failed. Couldn't obtain client for clientID: %s", clientID))))
+		return errors.WithStack(ErrInvalidClient.WithDebug(err.Error()).WithDebug(
+			fmt.Sprintf("Token revoke failed. Couldn't obtain client for clientID: %s", clientID)))
 	}
 
 	// Enforce client authentication for confidential clients

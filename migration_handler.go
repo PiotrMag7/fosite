@@ -147,7 +147,7 @@ func (f *Fosite) NewTokenMigrationRequest(ctx context.Context, r *http.Request) 
 			//TODO: some logging, requires instrumentation
 			// do nothing
 		} else if err != nil {
-			return errors.WithStack(ErrorInvalidRequest.WithDebug(err.Error()).WithDebug(
+			return errors.WithStack(ErrInvalidRequest.WithDebug(err.Error()).WithDebug(
 				"Token migration failed."))
 		}
 	}

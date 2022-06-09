@@ -30,7 +30,7 @@ func (f *Fosite) NewAccessResponse(ctx context.Context, requester AccessRequeste
 		} else if errors.Cause(err).Error() == ErrUnknownRequest.Error() {
 			//TODO: some logging, requires instrumentation
 		} else if err != nil {
-			return nil, errors.WithStack(ErrServerError.WithDebug(err.Errors()).WithDebug(
+			return nil, errors.WithStack(ErrServerError.WithDebug(err.Error()).WithDebug(
 				"Couldn't create response object"))
 		}
 	}
