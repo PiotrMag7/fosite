@@ -118,24 +118,26 @@ func (f *Fosite) NewIntrospectionRequest(ctx context.Context, r *http.Request, s
 		}
 
 		if _, err := f.IntrospectToken(ctx, clientToken, AccessToken, session.Clone()); err != nil {
-			return &IntrospectionResponse{Active: false}, errors.WithStack(ErrRequestUnauthorized.WithDebug("HTTP Authorization header missing.WithDebug(malformed or credentials used are invalid"))
+			return &IntrospectionResponse{Active: false}, errors.WithStack(ErrRequestUnauthorized.WithDebug(
+				"HTTP Authorization header missing, malformed or credentials used are invalid").WithDebug(err.Error()))
 		}
 	} else {
 		clientID, clientSecret, ok := r.BasicAuth()
 		if !ok {
-			return &IntrospectionResponse{Active: false}, errors.WithStack(ErrRequestUnauthorized.WithDebug("HTTP Authorization header missing.WithDebug(malformed or credentials used are invalid"))
+			return &IntrospectionResponse{Active: false}, errors.WithStack(ErrRequestUnauthorized.WithDebug(
+				"HTTP Authorization header missing, malformed or credentials used are invalid"))
 		}
 
 		client, err := f.Store.GetClient(ctx, clientID)
 		if err != nil {
-			return &IntrospectionResponse{Active: false}, errors.WithStack(ErrRequestUnauthorized.WithDebug("HTTP Authorization header missing.WithDebug(malformed or credentials used are invalid").WithDebug(
-				err.Error()))
+			return &IntrospectionResponse{Active: false}, errors.WithStack(ErrRequestUnauthorized.WithDebug(
+				"HTTP Authorization header missing, malformed or credentials used are invalid").WithDebug(err.Error()))
 		}
 
 		// Enforce client authentication
 		if err := f.Hasher.Compare(client.GetHashedSecret(), []byte(clientSecret)); err != nil {
-			return &IntrospectionResponse{Active: false}, errors.WithStack(ErrRequestUnauthorized.WithDebug("HTTP Authorization header missing.WithDebug(malformed or credentials used are invalid").WithDebug(
-				err.Error()))
+			return &IntrospectionResponse{Active: false}, errors.WithStack(ErrRequestUnauthorized.WithDebug(
+				"HTTP Authorization header missing, malformed or credentials used are invalid").WithDebug(err.Error()))
 		}
 	}
 
